@@ -1,10 +1,12 @@
 import users as user_module
 
-from utils import randbytes
+from utils import randbytes, read_image_binary, write_image_binary,show_image_from_bytes,show_encrypted_noise
 from cbc import cbc_encrypt, cbc_decrypt
 from ecc import EllipticCurve, ECPoint
 from ec_elgamal import ec_elgamal_encrypt_key, ec_elgamal_decrypt_key
 from idea import idea_key_schedule
+from mac import hmac_sha256
+from rsa_blind import generate_rsa_keypair, blind_message, unblind_signature, sign_blinded_message, verify_signature
 # ------------------ Security checks ------------------
     #Checks if an IDEA key is considered 'weak'.
     #Criteria:
@@ -62,6 +64,48 @@ def login():
     else:
         print("Invalid username or password.")
         return False
+
+#------------------ Sender and Receiver Flow ------------------
+def run_sender_process(source_file_path: str, receiver_public_key: ECPoint):
+    """
+    Simulates the SENDER actions:
+    1. Loads the image.
+    2. Generates IDEA Session Key & IV.
+    3. Encrypts Image (IDEA-CBC).
+    4. Encrypts Session Key (EC-ElGamal).
+    5. Bundles data for transmission.
+    """
+    print(f"\n--- [Sender] Processing file: {source_file_path} ---")
+    
+    # A. Load Data
+    try:
+        plaintext_data = read_image_binary(source_file_path)
+        print(f" > [Sender] File loaded. Size: {len(plaintext_data)} bytes.")
+    except FileNotFoundError:
+        print(" > [Sender] Error: Source file not found.")
+        return None
+    
+    show_image_from_bytes(plaintext_data, title="[Sender] Original Image")
+
+    # B. Generate Security Parameters
+    # Generate strong IDEA key
+    key = generate_strong_idea_key()
+    iv = randbytes(8) # IV 
+    print(f" > [Sender] Generated Idea Key: {key.hex()}")
+    print(f" > [Sender] Generated IV: {iv.hex()}")
+
+    # C. Encrypt Data (Symmetric Encryption)
+    print(" > [Sender] Encrypting image data using IDEA-CBC")
+    encrypted_img = cbc_encrypt(plaintext_data, key, iv)
+    show_encrypted_noise(encrypted_img, title="[Sender] Encrypted Image Data Visualization")
+
+    # D. Encrypt Key (Key Encapsulation)
+    # The sender uses the Receiver's Public Key to encrypt the symmetric key
+    print(" > [Sender] Encrypting key using EC-ElGamal")
+    enc_key_R, enc_key_C = ec_elgamal_encrypt_key(key, receiver_public_key)
+    
+    return iv, (enc_key_R, enc_key_C), encrypted_img
+
 
 
 # ------------------ Main flow ------------------

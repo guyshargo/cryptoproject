@@ -1,6 +1,12 @@
 # utils.py
+import io
+import os
 import secrets
 import hashlib
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+from PIL import Image
 
 BLOCK_SIZE_IDEA = 8  # IDEA block size (64-bit)
 
@@ -100,3 +106,78 @@ def mul_inverse_idea(x):
     if inv == IDEA_ADD_MOD:
         return 0
     return inv
+
+
+def read_image_binary(filepath: str) -> bytes:
+    """
+    Reads a binary file from disk.
+    Mode 'rb' ensures we get raw bytes without encoding issues.
+    Returns: The raw byte content of the file.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Image not found: {filepath}")
+    
+    with open(filepath, "rb") as f:
+        file_content = f.read()
+    
+    return file_content
+
+def write_image_binary(filepath: str, data: bytes):
+    """
+    Writes raw bytes to a file on disk.
+    Mode 'wb' is used to write binary data 
+    """
+    with open(filepath, "wb") as f:
+        f.write(data)
+    print(f" [System] Image saved successfully to: {filepath}")
+
+# ==========================================
+# Visualization Functions
+# ==========================================
+
+def show_image_from_bytes(data: bytes, title="Image"):
+    """
+    Decodes and displays a valid image (JPG/PNG) from raw bytes.
+    Used for: Original Image and Decrypted Image.
+    """
+    # Convert raw bytes to a file-like object in memory
+    image_stream = io.BytesIO(data)
+    
+    # Open the image using PIL (to interpret the JPG/PNG format)
+    img = Image.open(image_stream)
+    
+    # Plot using Matplotlib
+    plt.figure(figsize=(6, 6))
+    plt.imshow(img)
+    plt.title(title)
+    plt.axis('off') # Hide X and Y axes
+    plt.show()
+    
+
+def show_encrypted_noise(data_bytes: bytes, title="Encrypted Data (Visualized)"):
+    """
+    Visualizes raw encrypted bytes as a grayscale noise image.
+    Used for: The Encrypted Image (Ciphertext).
+    Since ciphertext looks like random noise, we treat bytes as pixel intensity.
+    """
+    # 1. Convert bytes to a numpy array of integers (0-255)
+    data_array = np.frombuffer(data_bytes, dtype=np.uint8)
+    
+    # 2. Calculate the dimensions of the square (Side * Side)
+    length = len(data_array)
+    side = int(math.ceil(math.sqrt(length)))
+    
+    # 3. Pad with zeros if necessary to form a perfect square
+    padding_needed = (side * side) - length
+    if padding_needed > 0:
+        data_array = np.pad(data_array, (0, padding_needed), mode='constant', constant_values=0)
+        
+    # 4. Reshape 1D array to 2D matrix (Image)
+    image_matrix = data_array.reshape((side, side))
+    
+    # 5. Plot
+    plt.figure(figsize=(6, 6))
+    plt.imshow(image_matrix, cmap='gray', vmin=0, vmax=255)
+    plt.title(title)
+    plt.axis('off')
+    plt.show()
