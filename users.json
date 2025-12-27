@@ -1,0 +1,5 @@
+{
+    "guy": {"salt": "f684110e825e7f61485caeb213e23abd", "hash": "dbf355b47955c8485771e3dbef35048cef772c49704742728c176779a82eae19"}, 
+    "yarden": {"salt": "e43b3ba0f9e1d2b6eb4ada08578fec63", "hash": "df87294e738870d77e72ee9789ed4aab274806fdfd29c8be1f18a8f757f1bb6e"},
+     "shelly": {"salt": "005c50677c1c60faaacd424e66e7483a", "hash": "aeb5e7f460a40644c006087c1e4b0bc4f88a026096e92c086c9209028e5bc7ac"}
+}
