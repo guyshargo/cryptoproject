@@ -126,7 +126,7 @@ def idea_key_schedule(key_bytes):
     # Return exactly the 52 subkeys 
     return subkeys[:52]
 
-def idea_crypt_block(block, subkeys):
+def idea_encrypt_block(block, subkeys):
     # initialize variables
     # block is  8 bytes
     # splitting block into four 16-bit values

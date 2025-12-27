@@ -81,7 +81,7 @@ def generate_keys():
     """
     return keygen()
 
-def encrypt_key(public_key, symmetric_key_bytes):
+def ec_elgamal_encrypt_key(public_key, symmetric_key_bytes):
     """
     Encrypts the SYMMETRIC KEY using the receiver's Public Key.
     
@@ -110,7 +110,7 @@ def encrypt_key(public_key, symmetric_key_bytes):
     
     return C1, C2
 
-def decrypt_key(private_key, C1, C2):
+def ec_elgamal_decrypt_key(private_key, C1, C2):
     """
     Decrypts the SYMMETRIC KEY using the receiver's Private Key.
     

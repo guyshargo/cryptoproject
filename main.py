@@ -14,12 +14,12 @@ from rsa_blind import generate_rsa_keypair, blind_message, unblind_signature, si
 #         SYSTEM & AUTHORITY SETUP
 # ==========================================
 
-# משתנים גלובליים ל"רשות המאשרת" (Authority)
+#(Authority public and private keys)
 AUTH_PRIV_KEY = None # (d, n)
 AUTH_PUB_KEY = None  # (e, n)
 
 def setup_authority():
-    """מייצר את המפתחות של הרשות בתחילת הריצה"""
+    #sets public and private keys for the simulated authority
     global AUTH_PRIV_KEY, AUTH_PUB_KEY
     print("[System] Setting up Virtual Certificate Authority (RSA)...")
     pub, priv = generate_rsa_keypair(keysize=2048)
@@ -28,7 +28,7 @@ def setup_authority():
     print("[System] Authority ready.")
 
 def simulated_authority_sign_request(blinded_msg_int):
-    """מדמה פנייה לשרת החתימות"""
+    # Simulates the authority signing the blinded message
     d, n = AUTH_PRIV_KEY
     return sign_blinded_message(blinded_msg_int, d, n)
 
