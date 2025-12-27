@@ -1,11 +1,12 @@
 import random
-from utils import sha256, modinv, egcd
+from utils import sha256, modinv, egcd, int_from_bytes
 
-# User hides message with blinding factor, result is randomized gibberish because of r
+# User hides message with blinding factor
 def blind_message(message_bytes, e, n):
 
-    # Turning message into a unique integer (hashing)
-    msg_hash = int(sha256(message_bytes).hexdigest(), 16)
+    # Turning message into a unique integer
+    # Using utils.int_from_bytes because utils.sha256 returns raw bytes
+    msg_hash = int_from_bytes(sha256(message_bytes))
 
     # Generating random r (Blinding Factor)
     while True:
@@ -35,8 +36,8 @@ def unblind_signature(signed_blinded_msg, r, n):
 
 # Verification of the signature (if it matches the original message) by User B
 def verify_signature(message_bytes, signature, e, n):
-    # Hashing the original message
-    msg_hash = int(sha256(message_bytes).hexdigest(), 16)
+    # Hashing the original message to compare
+    msg_hash = int_from_bytes(sha256(message_bytes))
 
     # Check: s^e mod n == hash(m)
     calculated_hash = pow(signature, e, n)
