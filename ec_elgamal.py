@@ -1,5 +1,6 @@
 import random
 from utils import int_from_bytes, int_to_bytes
+# Importing from your fixed ecc.py file
 from ecc import (
     ECPoint, 
     scalar_mult, 
@@ -9,105 +10,124 @@ from ecc import (
     G, N, P, A, B, O
 )
 
-# Checks if n is a quadratic residue mod p.
+# --- Helper Math Functions ---
+
 def is_quad_residue(n, p):
+    """Checks if n is a quadratic residue mod p."""
     return pow(n, (p - 1) // 2, p) == 1
 
-# Finds a square root of n modulo p.
-# For Secp256k1, p = 3 mod 4, so we can use the simplified formula.
 def sqrt_mod_p(n, p):
+    """Finds a square root of n modulo p (for Secp256k1)."""
     if not is_quad_residue(n, p):
         return None
     return pow(n, (p + 1) // 4, p)
 
-# Subtracts point p2 from p1: P1 - P2 = P1 + (-P2)
 def point_sub(p1, p2):
+    """Subtracts point p2 from p1: P1 - P2 = P1 + (-P2)"""
     return point_add(p1, point_neg(p2))
 
-# --- Encoding / Decoding (Bytes <-> ECPoint) ---
+# --- Encoding / Decoding (Symmetric Key <-> ECPoint) ---
 
-# Maps arbitrary bytes (e.g., an IDEA key) to a valid ECPoint.
-# Method: Koblitz Encoding (padding message into x coordinate)
-def msg_to_point(message_bytes):
+def key_to_point(symmetric_key_bytes):
+    """
+    Maps the Symmetric Key (raw bytes) to a valid ECPoint.
+    Usage: Converts the IDEA/AES key into a geometric point so ElGamal can encrypt it.
+    """
+    key_int = int_from_bytes(symmetric_key_bytes)
     
-    msg_int = int_from_bytes(message_bytes)
-    
-    # Check if message is too large for the padding strategy
-    # We reserve 16 bits for the counter, so message must fit in remaining bits
-    if msg_int >= (P >> 16):
-        raise ValueError("Message too long to encode as point")
+    # Validation: The key must fit into the curve field with room for padding
+    # We reserve 16 bits for the counter.
+    if key_int >= (P >> 16):
+        raise ValueError("Key is too long to encode directly on this curve")
 
     # Shift left to make room for a counter (16 bits)
-    x_prefix = msg_int << 16 
+    x_prefix = key_int << 16 
     
+    # Try to find a valid coordinate on the curve
     for counter in range(2**16):
         x = x_prefix + counter
         
-        # Calculate RHS = x^3 + ax + b (mod p)
+        # Curve equation: y^2 = x^3 + ax + b
         rhs = (pow(x, 3, P) + (A * x) + B) % P
         
-        # Check if RHS is a square (Quadratic Residue)
+        # Check if we can find a 'y' (is RHS a square?)
         y = sqrt_mod_p(rhs, P)
         
         if y is not None:
-            # Found a valid point! Return as ECPoint object
+            # Success: The symmetric key is now encoded as a point
             return ECPoint(x, y)
             
-    raise Exception("Failed to map message to point (try simpler/shorter message)")
+    raise Exception("Failed to map key to point (try a different key)")
 
-# Extracts the original bytes from the ECPoint.
-def point_to_msg(point):
+def point_to_key(point):
+    """
+    Extracts the Symmetric Key bytes from the ECPoint.
+    """
     if point is O or point is None:
         raise ValueError("Cannot decode point at infinity")
 
-    # Reverse the padding: remove the 16-bit counter
-    msg_int = point.x >> 16
+    # Remove the padding (counter) to get the original key value
+    key_int = point.x >> 16
     
-    # Convert back to bytes (16 bytes for 128-bit key)
-    # Note: We assume the key is 16 bytes (128 bits) as used in IDEA
-    return int_to_bytes(msg_int, 16) 
+    # Convert back to 16 bytes (assuming 128-bit symmetric key like IDEA)
+    return int_to_bytes(key_int, 16) 
 
-# --- Core ElGamal Functions ---
+# --- Key Encapsulation (Encryption of the Key) ---
 
-# Generates a private/public key pair.
-# Uses the keygen wrapper from ecc.py which defaults to Secp256k1 generator G
 def generate_keys():
-    # Returns (d, Q) where Q = d*G
+    """
+    Generates Alice/Bob's asymmetric keys for the key exchange.
+    Returns (private_key, public_key_point).
+    """
     return keygen()
 
-# Alice encrypts a message to Bob.
-# Returns pair of ECPoints (C1, C2)
-def encrypt(public_key, message_bytes):
-
-    # 1. Encode message bytes to a Point PM
-    PM = msg_to_point(message_bytes)
+def encrypt_key(public_key, symmetric_key_bytes):
+    """
+    Encrypts the SYMMETRIC KEY using the receiver's Public Key.
     
-    # 2. Choose random k (ephemeral key)
+    Args:
+        public_key: The receiver's (Bob's) EC public key.
+        symmetric_key_bytes: The secret session key (e.g., 16 bytes for IDEA).
+        
+    Returns:
+        (C1, C2): A pair of points representing the encrypted key.
+    """
+    # 1. Map the secret key bytes to a point on the curve
+    key_point = key_to_point(symmetric_key_bytes)
+    
+    # 2. Choose random k (ephemeral key for this transmission)
     k = random.SystemRandom().randint(1, N - 1)
     
-    # 3. Calculate C1 = k * G (The hint)
+    # 3. Calculate C1 = k * G (The hint for Bob)
     C1 = scalar_mult(k, G)
     
-    # 4. Calculate C2 = PM + S (The masked message)
-    # First calc shared secret: S = k * Public_Key
+    # 4. Calculate C2 = key_point + Shared_Secret
+    # Shared secret S = k * Public_Key
     S = scalar_mult(k, public_key)
     
-    # Add points geometrically
-    C2 = point_add(PM, S)
+    # Hide the key point by adding the shared secret
+    C2 = point_add(key_point, S)
     
     return C1, C2
 
-# Bob decrypts the message.
-# Returns the original message bytes
-def decrypt(private_key, C1, C2):
-
+def decrypt_key(private_key, C1, C2):
+    """
+    Decrypts the SYMMETRIC KEY using the receiver's Private Key.
+    
+    Args:
+        private_key: The receiver's (Bob's) private integer.
+        C1, C2: The pair of points received from the sender.
+        
+    Returns:
+        symmetric_key_bytes: The raw bytes of the secret session key.
+    """
     # 1. Recreate shared secret: S = d * C1
     S = scalar_mult(private_key, C1)
     
-    # 2. Recover Message Point: PM = C2 - S
-    PM = point_sub(C2, S)
+    # 2. Recover the Key Point: key_point = C2 - S
+    key_point = point_sub(C2, S)
     
-    # 3. Decode point back to bytes
-    message_bytes = point_to_msg(PM)
+    # 3. Decode the point back to raw key bytes
+    symmetric_key_bytes = point_to_key(key_point)
     
-    return message_bytes
+    return symmetric_key_bytes
