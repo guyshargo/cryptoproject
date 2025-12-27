@@ -3,12 +3,12 @@ from utils import idea_mul, idea_add, add_inverse_idea, mul_inverse_idea
 # Decrypt a single 8-byte block using IDEA
 def idea_decrypt_block(block, subkeys):
     # Generate decryption subkeys from encryption subkeys
-    decryption_subkeys = generate_decryption_subkeys(subkeys)
+    decryption_subkeys = Idea_decryption_subkeys(subkeys)
     # Use the same cryptographic function with decryption subkeys
     return idea_crypt_block(block, decryption_subkeys)
 
 # invert subkeys for decryption
-def generate_decryption_subkeys(encryption_subkeys):
+def Idea_decryption_subkeys(encryption_subkeys):
     
     # Initialize a list of 52 zeros to hold the new keys
     decryption_subkeys = [0] * 52
@@ -89,7 +89,7 @@ def generate_decryption_subkeys(encryption_subkeys):
 # Generates the 52 subkeys required for IDEA encryption.
 # Input: key_bytes (16 bytes / 128 bits)
 # Output: List of 52 integers (16-bit each)
-def generate_subkeys(key_bytes):
+def idea_key_schedule(key_bytes):
     # checlk key length
     if len(key_bytes) != 16:
         raise ValueError("Key must be exactly 16 bytes (128 bits)")
