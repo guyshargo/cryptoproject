@@ -83,3 +83,20 @@ def idea_add(a: int, b: int) -> int:
     addition modulo 2^16 (65536).
     """
     return (a + b) % IDEA_ADD_MOD
+
+# Computes the additive inverse modulo 2^16. In IDEA, addition is mod 65536.
+def add_inverse_idea(x):
+    return (IDEA_ADD_MOD - x) % IDEA_ADD_MOD
+
+# Computes the multiplicative inverse modulo 2^16 + 1. 0 is treated as 2^16.
+def mul_inverse_idea(x):
+    if x == 0:
+        x = IDEA_ADD_MOD
+    
+    # 65537 is prime, so inverse always exists for x != 0
+    inv = modinv(x, IDEA_MOD)
+    
+    # Convert back to IDEA representation (2^16 becomes 0)
+    if inv == IDEA_ADD_MOD:
+        return 0
+    return inv
