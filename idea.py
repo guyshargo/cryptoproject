@@ -5,7 +5,7 @@ def idea_decrypt_block(block, subkeys):
     # Generate decryption subkeys from encryption subkeys
     decryption_subkeys = Idea_decryption_subkeys(subkeys)
     # Use the same cryptographic function with decryption subkeys
-    return idea_crypt_block(block, decryption_subkeys)
+    return idea_encrypt_block(block, decryption_subkeys)
 
 # invert subkeys for decryption
 def Idea_decryption_subkeys(encryption_subkeys):
