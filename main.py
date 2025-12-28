@@ -185,6 +185,7 @@ def run_receiver_process(package, receiver_private_key):
 
     # 2. Verify MAC (Integrity)
     print(" > 2. Verifying MAC on Ciphertext...")
+    print(f" >    MAC Received: {received_mac.hex()}")
     calc_mac = hmac_sha256(session_key, full_ciphertext)
     if calc_mac != received_mac:
         print(" > SECURITY ALERT: MAC Mismatch! File Corrupted.")
@@ -192,7 +193,7 @@ def run_receiver_process(package, receiver_private_key):
     print(" >    MAC Verified.")
 
     # 3. Decrypt Payload (IDEA-CBC)
-    print(" > 3. Decrypting Payload...")
+    print(" > 3. Decrypting Payload (Signature + Image)...")
     try:
         decrypted_payload = cbc_decrypt(session_key, full_ciphertext)
     except Exception as e:
@@ -213,6 +214,7 @@ def run_receiver_process(package, receiver_private_key):
         print(" > Error unpacking payload.")
         return
 
+    print (f" >    Extracted Signature: {rsa_sig_bytes.hex()[:64]}...")
     # Verify against Authority
     auth_e, auth_n = AUTH_PUB_KEY
     is_valid = verify_signature(image_data, rsa_sig_int, auth_e, auth_n)
