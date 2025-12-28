@@ -1,48 +1,71 @@
-# cbc.py
-from utils import xor_bytes, pkcs7_pad, pkcs7_unpad, BLOCK_SIZE_IDEA
+from utils import xor_bytes, pkcs7_pad, pkcs7_unpad, randbytes, BLOCK_SIZE_IDEA
 from idea import idea_key_schedule, idea_encrypt_block, idea_decrypt_block
 
+# IDEA uses 64-bit blocks (8 bytes)
+# (Assumed imported or defined as 8)
 
-def cbc_encrypt(data: bytes, key16: bytes, iv8: bytes) -> bytes:
-    # Encrypt data using IDEA in CBC mode
-    if len(iv8) != BLOCK_SIZE_IDEA:
-        raise ValueError("IV must be 8 bytes")
-
-    subkeys = idea_key_schedule(key16)
-    padded = pkcs7_pad(data, BLOCK_SIZE_IDEA)
+def cbc_encrypt(key: bytes, plaintext: bytes) -> bytes:
+    """
+    Encrypts plaintext using IDEA in CBC mode.
+    AUTO-GENERATES a random IV and prepends it to the result.
+    Returns: [IV (8 bytes)] + [Ciphertext]
+    """
+    # 1. Generate random IV inside the function
+    iv = randbytes(BLOCK_SIZE_IDEA)
+    
+    # 2. Key schedule & Padding
+    subkeys = idea_key_schedule(key)
+    padded = pkcs7_pad(plaintext, BLOCK_SIZE_IDEA)
 
     ciphertext = bytearray()
-    prev = iv8  # IV for first block
+    previous_block = iv  # IV is the first 'previous block'
 
+    # 3. Encryption Loop
     for i in range(0, len(padded), BLOCK_SIZE_IDEA):
-        block = padded[i:i + BLOCK_SIZE_IDEA]
-        x = xor_bytes(block, prev)              # CBC chaining
-        c = idea_encrypt_block(x, subkeys)      # IDEA encryption
-        ciphertext += c
-        prev = c
+        block = padded[i : i + BLOCK_SIZE_IDEA]
+        
+        # XOR with previous
+        input_block = xor_bytes(block, previous_block)
+        
+        # Encrypt with IDEA
+        encrypted_block = idea_encrypt_block(input_block, subkeys)
+        
+        ciphertext.extend(encrypted_block)
+        previous_block = encrypted_block # Update for next loop
 
-    return bytes(ciphertext)
+    # 4. Return IV attached to the front!
+    return iv + bytes(ciphertext)
 
 
-def cbc_decrypt(ciphertext: bytes, key16: bytes, iv8: bytes) -> bytes:
-    # Decrypt data using IDEA in CBC mode
-    if len(iv8) != BLOCK_SIZE_IDEA:
-        raise ValueError("IV must be 8 bytes")
+def cbc_decrypt(key: bytes, full_data: bytes) -> bytes:
+    """
+    Decrypts data using IDEA in CBC mode.
+    Expects input format: [IV (8 bytes)] + [Ciphertext]
+    """
+    # 1. Extract IV from the beginning
+    if len(full_data) < BLOCK_SIZE_IDEA:
+        raise ValueError("Data too short")
+        
+    iv = full_data[:BLOCK_SIZE_IDEA]
+    actual_ciphertext = full_data[BLOCK_SIZE_IDEA:]
 
-    if len(ciphertext) % BLOCK_SIZE_IDEA != 0:
-        raise ValueError("Ciphertext length must be multiple of block size")
-
-    subkeys = idea_key_schedule(key16)
-
+    subkeys = idea_key_schedule(key)
+    
     plaintext = bytearray()
-    prev = iv8  # IV for first block
+    previous_block = iv
 
-    for i in range(0, len(ciphertext), BLOCK_SIZE_IDEA):
-        c = ciphertext[i:i + BLOCK_SIZE_IDEA]
-        x = idea_decrypt_block(c, subkeys)      # IDEA decryption
-        p = xor_bytes(x, prev)                  # CBC unchaining
-        plaintext += p
-        prev = c
+    # 2. Decryption Loop
+    for i in range(0, len(actual_ciphertext), BLOCK_SIZE_IDEA):
+        encrypted_block = actual_ciphertext[i : i + BLOCK_SIZE_IDEA]
+        
+        # Decrypt with IDEA
+        decrypted_x = idea_decrypt_block(encrypted_block, subkeys)
+        
+        # XOR with previous (Unchaining)
+        original_block = xor_bytes(decrypted_x, previous_block)
+        
+        plaintext.extend(original_block)
+        previous_block = encrypted_block # Must use the CIPHERTEXT as prev for next step
 
+    # 3. Remove padding
     return pkcs7_unpad(bytes(plaintext), BLOCK_SIZE_IDEA)
-

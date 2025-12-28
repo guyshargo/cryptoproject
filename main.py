@@ -21,11 +21,11 @@ AUTH_PUB_KEY = None  # (e, n)
 def setup_authority():
     #sets public and private keys for the simulated authority
     global AUTH_PRIV_KEY, AUTH_PUB_KEY
-    print("[System] Setting up Virtual Certificate Authority (RSA)...")
+    print(" > Setting up Virtual Certificate Authority (RSA)...")
     pub, priv = generate_rsa_keypair(keysize=2048)
     AUTH_PUB_KEY = pub
     AUTH_PRIV_KEY = priv
-    print("[System] Authority ready.")
+    print(" > Authority ready.")
 
 def simulated_authority_sign_request(blinded_msg_int):
     # Simulates the authority signing the blinded message
@@ -106,15 +106,15 @@ def run_sender_process(source_file_path: str, receiver_public_key: ECPoint):
     # A. Load Data
     try:
         image_data = read_image_binary(source_file_path)
-        print(f" > [Sender] File loaded. Size: {len(image_data)} bytes.")
+        print(f" > File loaded. Size: {len(image_data)} bytes.")
     except FileNotFoundError:
-        print(" > [Sender] Error: Source file not found.")
+        print(" > Error: Source file not found.")
         return None
     
     show_image_from_bytes(image_data, title="[Sender] Original Image")
 
     # B. RSA Blind Signature (Authentication)
-    print(" > [Sender] 1. Requesting Blind Signature from Authority...")
+    print(" > 1. Requesting Blind Signature from Authority...")
     auth_e, auth_n = AUTH_PUB_KEY
     
     # Blinding
@@ -125,32 +125,33 @@ def run_sender_process(source_file_path: str, receiver_public_key: ECPoint):
     rsa_signature_int = unblind_signature(signed_blinded_msg, r_factor, auth_n)
     # Convert sig to bytes (256 bytes for 2048-bit key)
     rsa_signature_bytes = int_to_bytes(rsa_signature_int, 256)
-    
+    print(f" >    RSA Signature: {rsa_signature_bytes.hex()[:64]}...")
+
     # C. Prepare Payload (Pack Signature + Image)
     sig_len = len(rsa_signature_bytes)
     # Format: [4 bytes length][Signature][Image]
     payload = struct.pack('>I', sig_len) + rsa_signature_bytes + image_data
-
     # D. Encrypt Data (IDEA-CBC)
-    print(" > [Sender] 2. Encrypting Payload (Image + Sig)...")
+    print(" > 2. Encrypting Payload (Image + Signature)...")
     idea_key = generate_strong_idea_key()
-    print(f" > [Sender] Generated Strong IDEA Key: {idea_key.hex()}")
+    print(f" >    Generated Strong IDEA Key: {idea_key.hex()}")
     
     # Note: Our cbc_encrypt now generates the IV internally and prepends it
     full_ciphertext = cbc_encrypt(idea_key, payload)
     
     # Show noise just for visual confirmation
     # We take a slice just to show noise, as full_ciphertext has IV at start
-    show_encrypted_noise(full_ciphertext[8:], title="[Sender] Encrypted Noise")
+    show_encrypted_noise(full_ciphertext[8:], title="[Sender] Encrypted Image")
 
     # E. MAC (Integrity) - Encrypt-then-MAC
-    print(" > [Sender] 3. Generating MAC...")
+    print(" > 3. Generating MAC on Ciphertext...")
     mac_tag = hmac_sha256(idea_key, full_ciphertext)
-
+    print(f" >    MAC Tag: {mac_tag.hex()}")
     # F. Encrypt Key (EC-ElGamal)
-    print(" > [Sender] 4. Encrypting IDEA Key for Receiver...")
+    print(" > 4. Encrypting IDEA Key for Receiver with EC-ElGamal...")
     enc_key_points = ec_elgamal_encrypt_key(receiver_public_key, idea_key)
-    
+    print(f" >    Encrypted Key Points: C1={enc_key_points[0]}")
+    print(f" >                          C2={enc_key_points[1]}")
     # Return the network package
     package = {
         'enc_key': enc_key_points,
@@ -172,32 +173,34 @@ def run_receiver_process(package, receiver_private_key):
     C1, C2 = enc_key_points
 
     # 1. Decrypt IDEA Key (ECC)
-    print(" > [Receiver] 1. Decrypting Session Key...")
+    print(" > 1. Decrypting Session Key with EC-ElGamal...")
+    print(f" >    Encrypted Key Points: C1={enc_key_points[0]}")
+    print(f" >                          C2={enc_key_points[1]}")
     try:
         session_key = ec_elgamal_decrypt_key(receiver_private_key, C1, C2)
-        print(f" > [Receiver] Key Recovered: {session_key.hex()}")
+        print(f" >    Key Recovered: {session_key.hex()}")
     except Exception as e:
-        print(f" > [Receiver] Error decrypting key: {e}")
+        print(f" > Error decrypting key: {e}")
         return
 
     # 2. Verify MAC (Integrity)
-    print(" > [Receiver] 2. Verifying MAC...")
+    print(" > 2. Verifying MAC on Ciphertext...")
     calc_mac = hmac_sha256(session_key, full_ciphertext)
     if calc_mac != received_mac:
-        print(" > [Receiver] SECURITY ALERT: MAC Mismatch! File Corrupted.")
+        print(" > SECURITY ALERT: MAC Mismatch! File Corrupted.")
         return
-    print(" > [Receiver] MAC Verified.")
+    print(" >    MAC Verified.")
 
     # 3. Decrypt Payload (IDEA-CBC)
-    print(" > [Receiver] 3. Decrypting Payload...")
+    print(" > 3. Decrypting Payload...")
     try:
         decrypted_payload = cbc_decrypt(session_key, full_ciphertext)
     except Exception as e:
-        print(f" > [Receiver] Decryption failed: {e}")
+        print(f" > Decryption failed: {e}")
         return
 
     # 4. Unpack and Verify Signature
-    print(" > [Receiver] 4. Verifying Signature...")
+    print(" > 4. Verifying Signature...")
     try:
         # Read first 4 bytes for length
         sig_len = struct.unpack('>I', decrypted_payload[:4])[0]
@@ -207,7 +210,7 @@ def run_receiver_process(package, receiver_private_key):
         
         rsa_sig_int = int_from_bytes(rsa_sig_bytes)
     except:
-        print(" > [Receiver] Error unpacking payload.")
+        print(" > Error unpacking payload.")
         return
 
     # Verify against Authority
@@ -215,10 +218,10 @@ def run_receiver_process(package, receiver_private_key):
     is_valid = verify_signature(image_data, rsa_sig_int, auth_e, auth_n)
     
     if is_valid:
-        print(" > [Receiver] SUCCESS: Signature VALID. Image is Authentic.")
+        print(" >    SUCCESS: Signature is VALID. Image is Authentic.")
         show_image_from_bytes(image_data, title="[Receiver] Decrypted & Verified Image")
     else:
-        print(" > [Receiver] WARNING: Signature INVALID!")
+        print(" > WARNING: Signature is INVALID!")
 
 
 # ------------------ Main flow ------------------
@@ -226,7 +229,7 @@ def run_receiver_process(package, receiver_private_key):
 def main():
     # 1. Setup Users
     user_module.create_initial_users()
-    print("Welcome to the Secure System")
+    print("\nWelcome to the Secure System")
 
     # 2. Login
     if not login():
@@ -238,9 +241,10 @@ def main():
 
     # 4. Setup Bob (ECC - Secp256k1)
     # שינוי חשוב: שימוש ב-keygen מהקובץ החדש במקום הגדרה ידנית של עקום קטן
-    print("[System] Generating Bob's ECC Keys...")
+    print(" > Generating Bob's ECC Keys...")
     bob_priv, bob_pub = keygen()
-    
+    print(f" > Public Key: {bob_pub}")
+    print(f" > Private Key: {bob_priv}")
     # 5. Setup Source File
     source_file = "images.jpg"
 
@@ -250,7 +254,7 @@ def main():
     package = run_sender_process(source_file, bob_pub)
     
     if package:
-        print("\n" + "="*30 + "\n   NETWORK TRANSMISSION   \n" + "="*30)
+        print("\n" + "="*30 + "\n   Sending Image To Receiver   \n" + "="*30)
         
         # Bob Receives
         run_receiver_process(package, bob_priv)

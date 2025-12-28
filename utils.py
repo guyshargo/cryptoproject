@@ -40,15 +40,17 @@ def int_to_bytes(x: int, length: int) -> bytes:
 
 def egcd(a: int, b: int):
     # Extended Euclidean Algorithm
-    if b == 0:
-        return (a, 1, 0)
-    g, x, y = egcd(b, a % b)
-    return (g, y, x - (a // b) * y)
+    x0, x1, y0, y1 = 1, 0, 0, 1
+    while b != 0:
+        q, a, b = a // b, b, a % b
+        x0, x1 = x1, x0 - q * x1
+        y0, y1 = y1, y0 - q * y1
+    return a, x0, y0
 
 def modinv(a: int, n: int) -> int:
     # Modular inverse of a mod n
     a %= n
-    g, x, _ = egcd(a, n)
+    g, x, y = egcd(a, n)
     if g != 1:
         raise ValueError("No modular inverse")
     return x % n
