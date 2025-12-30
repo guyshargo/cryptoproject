@@ -9,7 +9,6 @@ def hmac_sha256(key_bytes, message_bytes):
 
     # Keys longer than block size are hashed
     if len(key_bytes) > BLOCK_SIZE:
-        # utils.sha256 returns bytes, so no conversion needed
         key_bytes = sha256(key_bytes)
     
     # Keys shorter than block size are padded with zeros
@@ -29,23 +28,3 @@ def hmac_sha256(key_bytes, message_bytes):
     hmac_result = sha256(outer_data) # Returns bytes
     
     return hmac_result
-
-# Reads a file (image) in binary mode and returns its HMAC.
-def calculate_file_mac(file_path, key_bytes):
-    try:
-        with open(file_path, "rb") as f:
-            file_data = f.read()
-        return hmac_sha256(key_bytes, file_data)
-    except FileNotFoundError:
-        return None
-
-# Receiving user verifies if the file matches the received MAC using the secret key.
-def verify_file_mac(file_path, received_mac, key_bytes):
-    # Calculate MAC of the file with the shared secret key
-    calculated_mac = calculate_file_mac(file_path, key_bytes)
-    
-    if calculated_mac is None:
-        return False
-        
-    # If calculated MAC matches the received MAC, the file is valid
-    return calculated_mac == received_mac

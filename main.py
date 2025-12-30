@@ -34,7 +34,6 @@ def simulated_authority_sign_request(blinded_msg_int):
 
 # ------------------ Security checks ------------------
     #Checks if an IDEA key is considered 'weak'.
-    #Criteria:
     #1. Trivial patterns (sequence of zeros or ones).
     #2. Too many subkeys that are 0, 1, or 0xFFFF.
 def is_strong_idea_key(key_bytes):
@@ -53,7 +52,6 @@ def is_strong_idea_key(key_bytes):
     
     weak_elements_count = 0    
     for val in subkeys:
-        # In IDEA:
         # 0 is treated as 2^16 (in multiplication) or 0 (in addition)
         # 1 is the identity element for multiplication (x * 1 = x)
         # 65535 (0xFFFF) represents -1 (in modular addition)
@@ -90,7 +88,7 @@ def login():
         print("Invalid username or password.")
         return False
 
-#------------------ Sender Flow (Alice) ------------------
+#------------------ Sender Flow ------------------
 
 def run_sender_process(source_file_path: str, receiver_public_key: ECPoint):
     """
@@ -107,6 +105,7 @@ def run_sender_process(source_file_path: str, receiver_public_key: ECPoint):
     try:
         image_data = read_image_binary(source_file_path)
         print(f" > File loaded. Size: {len(image_data)} bytes.")
+        print(f" > Image Data Sample (first 64 bytes): {image_data[:64].hex()}...")
     except FileNotFoundError:
         print(" > Error: Source file not found.")
         return None
@@ -136,25 +135,24 @@ def run_sender_process(source_file_path: str, receiver_public_key: ECPoint):
     idea_key = generate_strong_idea_key()
     print(f" >    Generated Strong IDEA Key: {idea_key.hex()}")
     
-    # Note: Our cbc_encrypt now generates the IV internally and prepends it
     full_ciphertext = cbc_encrypt(idea_key, payload)
     
     # Show noise just for visual confirmation
     # We take a slice just to show noise, as full_ciphertext has IV at start
     show_encrypted_noise(full_ciphertext[8:], title="[Sender] Encrypted Image")
-
+    print(f" >    Encrypted Image Bytes Sample (first 64 bytes): {full_ciphertext[8:72].hex()}...")
     # E. MAC (Integrity) - Encrypt-then-MAC
     print(" > 3. Generating MAC on Ciphertext...")
     mac_tag = hmac_sha256(idea_key, full_ciphertext)
     print(f" >    MAC Tag: {mac_tag.hex()}")
     # F. Encrypt Key (EC-ElGamal)
     print(" > 4. Encrypting IDEA Key for Receiver with EC-ElGamal...")
-    enc_key_points = ec_elgamal_encrypt_key(receiver_public_key, idea_key)
-    print(f" >    Encrypted Key Points: C1={enc_key_points[0]}")
-    print(f" >                          C2={enc_key_points[1]}")
+    enc_elgamal_points = ec_elgamal_encrypt_key(receiver_public_key, idea_key)
+    print(f" >    Encrypted Key Points: C1={enc_elgamal_points[0]}")
+    print(f" >                          C2={enc_elgamal_points[1]}")
     # Return the network package
     package = {
-        'enc_key': enc_key_points,
+        'enc_key': enc_elgamal_points,
         'ciphertext': full_ciphertext,
         'mac': mac_tag
     }
@@ -222,6 +220,7 @@ def run_receiver_process(package, receiver_private_key):
     if is_valid:
         print(" >    SUCCESS: Signature is VALID. Image is Authentic.")
         show_image_from_bytes(image_data, title="[Receiver] Decrypted & Verified Image")
+        print(f" >    Decrypted Image Data Sample (first 64 bytes): {image_data[:64].hex()}...")
     else:
         print(" > WARNING: Signature is INVALID!")
 
@@ -241,25 +240,22 @@ def main():
     # 3. Setup Authority (RSA)
     setup_authority()
 
-    # 4. Setup Bob (ECC - Secp256k1)
-    # שינוי חשוב: שימוש ב-keygen מהקובץ החדש במקום הגדרה ידנית של עקום קטן
-    print(" > Generating Bob's ECC Keys...")
-    bob_priv, bob_pub = keygen()
-    print(f" > Public Key: {bob_pub}")
-    print(f" > Private Key: {bob_priv}")
+    # 4. Setup Receiver (ECC - Secp256k1)
+    print(" > Generating Receiver's ECC Keys...")
+    rec_priv, rec_pub = keygen()
+    print(f" > Public Key: {rec_pub}")
+    print(f" > Private Key: {rec_priv}")
     # 5. Setup Source File
     source_file = "images.jpg"
-
-    # === START PROTOCOL ===
     
-    # Alice Sends
-    package = run_sender_process(source_file, bob_pub)
+    # Sender Sends
+    package = run_sender_process(source_file, rec_pub)
     
     if package:
         print("\n" + "="*30 + "\n   Sending Image To Receiver   \n" + "="*30)
-        
-        # Bob Receives
-        run_receiver_process(package, bob_priv)
+    
+        # Receiver Receives
+        run_receiver_process(package, rec_priv)
 
 
 # Entry point

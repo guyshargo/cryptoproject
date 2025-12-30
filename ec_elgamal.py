@@ -40,7 +40,7 @@ def key_to_point(symmetric_key_bytes):
     if key_int >= (P >> 16):
         raise ValueError("Key is too long to encode directly on this curve")
 
-    # Shift left to make room for a counter (16 bits)
+    # Shift left to make room for a counter (16 bits), used as padding to find a valid point
     x_prefix = key_int << 16 
     
     # Try to find a valid coordinate on the curve
@@ -50,7 +50,7 @@ def key_to_point(symmetric_key_bytes):
         # Curve equation: y^2 = x^3 + ax + b
         rhs = (pow(x, 3, P) + (A * x) + B) % P
         
-        # Check if we can find a 'y' (is RHS a square?)
+        # Check if we can find a 'y'
         y = sqrt_mod_p(rhs, P)
         
         if y is not None:
@@ -69,14 +69,13 @@ def point_to_key(point):
     # Remove the padding (counter) to get the original key value
     key_int = point.x >> 16
     
-    # Convert back to 16 bytes (assuming 128-bit symmetric key like IDEA)
+    # Convert back to 16 bytes
     return int_to_bytes(key_int, 16) 
 
-# --- Key Encapsulation (Encryption of the Key) ---
 
 def generate_keys():
     """
-    Generates Alice/Bob's asymmetric keys for the key exchange.
+    Generates asymmetric keys for the key exchange.
     Returns (private_key, public_key_point).
     """
     return keygen()
@@ -86,7 +85,7 @@ def ec_elgamal_encrypt_key(public_key, symmetric_key_bytes):
     Encrypts the SYMMETRIC KEY using the receiver's Public Key.
     
     Args:
-        public_key: The receiver's (Bob's) EC public key.
+        public_key: The receiver's EC public key.
         symmetric_key_bytes: The secret session key (e.g., 16 bytes for IDEA).
         
     Returns:
@@ -98,11 +97,11 @@ def ec_elgamal_encrypt_key(public_key, symmetric_key_bytes):
     # 2. Choose random k (ephemeral key for this transmission)
     k = random.SystemRandom().randint(1, N - 1)
     
-    # 3. Calculate C1 = k * G (The hint for Bob)
+    # 3. Calculate C1 = k * G
     C1 = scalar_mult(k, G)
     
     # 4. Calculate C2 = key_point + Shared_Secret
-    # Shared secret S = k * Public_Key
+    # Shared secret S = k * Public_Key of receiver
     S = scalar_mult(k, public_key)
     
     # Hide the key point by adding the shared secret

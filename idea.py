@@ -128,7 +128,7 @@ def idea_key_schedule(key_bytes):
 
 def idea_encrypt_block(block, subkeys):
     # initialize variables
-    # block is  8 bytes
+    # block is 8 bytes
     # splitting block into four 16-bit values
     # combine two bytes to form a 16-bit integer
     x1 = (block[0] << 8) | block[1]
@@ -139,7 +139,7 @@ def idea_encrypt_block(block, subkeys):
     for round in range(8):
         # each round uses 6 subkeys
         k = round * 6
-    # Group operations: Addition (mod 2^16) and Multiplication (mod 2^16 + 1)
+        # Group operations: Addition (mod 2^16) and Multiplication (mod 2^16 + 1)
         x1 = idea_mul(x1, subkeys[k + 0])
         x2 = idea_add(x2, subkeys[k + 1])
         x3 = idea_add(x3, subkeys[k + 2])
@@ -177,4 +177,3 @@ def idea_encrypt_block(block, subkeys):
     res[4], res[5] = x3 >> 8, x3 & 0xFF
     res[6], res[7] = x4 >> 8, x4 & 0xFF
     return bytes(res)
-

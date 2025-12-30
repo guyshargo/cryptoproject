@@ -61,7 +61,7 @@ def cbc_decrypt(key: bytes, full_data: bytes) -> bytes:
         # Decrypt with IDEA
         decrypted_x = idea_decrypt_block(encrypted_block, subkeys)
         
-        # XOR with previous (Unchaining)
+        # XOR with previous block (or IV for first block)
         original_block = xor_bytes(decrypted_x, previous_block)
         
         plaintext.extend(original_block)
